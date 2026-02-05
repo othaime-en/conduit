@@ -1,9 +1,7 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import app from './app';
 import pool from '@database/client';
 import { logger } from '@shared/utils/logger';
-
-dotenv.config();
 
 const PORT = process.env.PORT || 3000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
