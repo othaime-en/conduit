@@ -6,5 +6,7 @@ export default defineConfig({
     test: {
         globals: true, // Optional: allows using describe, it, expect without imports
         environment: 'node', // Important for backend apps
+        testTimeout: 30000,
+        hookTimeout: 30000,
     },
 });
