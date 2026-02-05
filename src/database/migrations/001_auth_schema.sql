@@ -1,6 +1,12 @@
 -- Phase 1: Authentication & User Management Schema
 -- Migration: 001_auth_schema.sql
 
+-- Reset schema (Development only: Ensure we have a fresh start)
+DROP TABLE IF EXISTS sync_jobs CASCADE;
+DROP TABLE IF EXISTS connections CASCADE;
+DROP TABLE IF EXISTS refresh_tokens CASCADE;
+DROP TABLE IF EXISTS users CASCADE;
+
 -- Users table (core authentication)
 CREATE TABLE IF NOT EXISTS users (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
