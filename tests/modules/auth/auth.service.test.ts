@@ -5,7 +5,9 @@ import pool from '../../../src/database/client';
 
 describe('AuthService', () => {
     const authService = new AuthService();
-    let testUserId: string;
+    const createdUserIds: string[] = [];
+
+    const generateEmail = () => `test-${Date.now()}-${Math.floor(Math.random() * 10000)}@example.com`;
 
     beforeAll(async () => {
         // Ensure test database is set up
@@ -14,21 +16,18 @@ describe('AuthService', () => {
 
     afterAll(async () => {
         // Clean up test data
-        if (testUserId) {
-            await pool.query('DELETE FROM users WHERE id = $1', [testUserId]);
+        if (createdUserIds.length > 0) {
+            await pool.query('DELETE FROM users WHERE id = ANY($1)', [createdUserIds]);
         }
-        await pool.end();
-    });
-
-    beforeEach(async () => {
-        // Clean up any existing test user
-        await pool.query('DELETE FROM users WHERE email = $1', ['test@example.com']);
+        // Do not close pool as it might be shared or needed by other tests in parallel execution
+        // await pool.end();
     });
 
     describe('register', () => {
         it('should register a new user successfully', async () => {
+            const email = generateEmail();
             const result = await authService.register({
-                email: 'test@example.com',
+                email,
                 password: 'Test123!@#',
             });
 
@@ -41,15 +40,16 @@ describe('AuthService', () => {
             // Save user ID for cleanup
             const userResult = await pool.query(
                 'SELECT id FROM users WHERE email = $1',
-                ['test@example.com']
+                [email]
             );
-            testUserId = userResult.rows[0].id;
+            createdUserIds.push(userResult.rows[0].id);
         });
 
         it('should reject registration with weak password', async () => {
+            const email = generateEmail();
             await expect(
                 authService.register({
-                    email: 'test@example.com',
+                    email,
                     password: 'weak',
                 })
             ).rejects.toThrow();
@@ -65,16 +65,24 @@ describe('AuthService', () => {
         });
 
         it('should reject duplicate email registration', async () => {
+            const email = generateEmail();
             // Register first user
             await authService.register({
-                email: 'test@example.com',
+                email,
                 password: 'Test123!@#',
             });
+
+            // Get ID for cleanup
+            const userResult = await pool.query(
+                'SELECT id FROM users WHERE email = $1',
+                [email]
+            );
+            createdUserIds.push(userResult.rows[0].id);
 
             // Try to register again with same email
             await expect(
                 authService.register({
-                    email: 'test@example.com',
+                    email,
                     password: 'Test123!@#',
                 })
             ).rejects.toThrow('Email already registered');
@@ -82,23 +90,26 @@ describe('AuthService', () => {
     });
 
     describe('login', () => {
+        let testEmail: string;
+
         beforeEach(async () => {
+            testEmail = generateEmail();
             // Create a test user
             await authService.register({
-                email: 'test@example.com',
+                email: testEmail,
                 password: 'Test123!@#',
             });
 
             const userResult = await pool.query(
                 'SELECT id FROM users WHERE email = $1',
-                ['test@example.com']
+                [testEmail]
             );
-            testUserId = userResult.rows[0].id;
+            createdUserIds.push(userResult.rows[0].id);
         });
 
         it('should login successfully with correct credentials', async () => {
             const result = await authService.login({
-                email: 'test@example.com',
+                email: testEmail,
                 password: 'Test123!@#',
             });
 
@@ -110,7 +121,7 @@ describe('AuthService', () => {
         it('should reject login with wrong password', async () => {
             await expect(
                 authService.login({
-                    email: 'test@example.com',
+                    email: testEmail,
                     password: 'WrongPassword123!',
                 })
             ).rejects.toThrow('Invalid email or password');
@@ -119,7 +130,7 @@ describe('AuthService', () => {
         it('should reject login with non-existent email', async () => {
             await expect(
                 authService.login({
-                    email: 'nonexistent@example.com',
+                    email: 'nonexistent-' + generateEmail(),
                     password: 'Test123!@#',
                 })
             ).rejects.toThrow('Invalid email or password');
@@ -128,20 +139,22 @@ describe('AuthService', () => {
 
     describe('refreshAccessToken', () => {
         let refreshToken: string;
+        let testEmail: string;
 
         beforeEach(async () => {
+            testEmail = generateEmail();
             // Register and get refresh token
             const result = await authService.register({
-                email: 'test@example.com',
+                email: testEmail,
                 password: 'Test123!@#',
             });
             refreshToken = result.refreshToken;
 
             const userResult = await pool.query(
                 'SELECT id FROM users WHERE email = $1',
-                ['test@example.com']
+                [testEmail]
             );
-            testUserId = userResult.rows[0].id;
+            createdUserIds.push(userResult.rows[0].id);
         });
 
         it('should refresh access token successfully', async () => {
@@ -164,18 +177,23 @@ describe('AuthService', () => {
     });
 
     describe('getUserById', () => {
+        let testUserId: string;
+        let testEmail: string;
+
         beforeEach(async () => {
+            testEmail = generateEmail();
             // Create a test user
             await authService.register({
-                email: 'test@example.com',
+                email: testEmail,
                 password: 'Test123!@#',
             });
 
             const userResult = await pool.query(
                 'SELECT id FROM users WHERE email = $1',
-                ['test@example.com']
+                [testEmail]
             );
             testUserId = userResult.rows[0].id;
+            createdUserIds.push(testUserId);
         });
 
         it('should get user by ID successfully', async () => {
@@ -183,7 +201,7 @@ describe('AuthService', () => {
 
             expect(user).toHaveProperty('id');
             expect(user).toHaveProperty('email');
-            expect(user.email).toBe('test@example.com');
+            expect(user.email).toBe(testEmail);
             expect(user).not.toHaveProperty('password_hash');
         });
 
