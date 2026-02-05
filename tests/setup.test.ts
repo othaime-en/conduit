@@ -6,7 +6,7 @@ describe('Application Setup', () => {
     it('should return health check', async () => {
         const response = await request(app).get('/health');
         expect(response.status).toBe(200);
-        expect(response.body.status).toBe('ok');
+        expect(response.body.status).toBe('healthy');
     });
 
     it('should handle 404 errors', async () => {
